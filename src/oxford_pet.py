@@ -146,7 +146,7 @@ def load_dataset(data_path, mode):
 
 
 if __name__ == "__main__":
-    '''
+    
     # download the dataset
     dataset_root = "./dataset/oxford-iiit-pet"
 
@@ -157,6 +157,7 @@ if __name__ == "__main__":
         # download and extract the dataset
         OxfordPetDataset.download(dataset_root)
         print("> 資料集下載完成！")
+    
     # Exist
     else:
         # load_dataset Usage
@@ -169,7 +170,12 @@ if __name__ == "__main__":
         print(f"> 訓練集大小: {len(train_dataset)}")
         print(f"> 驗證集大小: {len(valid_dataset)}")
         print(f"> 測試集大小: {len(test_dataset)}")
+
+        from torch.utils.data import DataLoader
+        train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=4)
+        
         print()
+    '''
         sample = train_dataset[0]
         print(f"> 查看第一個樣本有哪些Key:/n  {sample.keys()}")
         for key, value in sample.items():
@@ -200,6 +206,7 @@ if __name__ == "__main__":
         print("This image is grayscale (single channel).")
     '''
 
+    '''
     from torch.utils.data import DataLoader
     from oxford_pet import OxfordPetDataset
 
@@ -216,3 +223,4 @@ if __name__ == "__main__":
     # for batch in train_loader:
     #     images, masks = batch["image"], batch["mask"]
         # 在此處進行模型訓練或其他操作
+    '''
