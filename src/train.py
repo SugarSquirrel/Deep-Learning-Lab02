@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from oxford_pet import load_dataset
 from matplotlib import pyplot as plt
 from models.unet import UNet
-from utils import dice_coefficient
+from utils import dice_score
 
 def train(args):
     # implement the training function here
@@ -37,7 +37,7 @@ def train(args):
             masks = batch['mask'].float().unsqueeze(1).to(device)
             images = images.permute(0, 3, 1, 2)  # [B, H, W, C] -> [B, C, H, W]
 
-            optimizer.zero_grad()
+            args.optimizer.zero_grad()
             outputs = model(images)
             loss = criterion(outputs, masks)
             loss.backward()
@@ -60,7 +60,7 @@ def train(args):
                 outputs = model(images)
                 loss = criterion(outputs, masks)
                 valid_loss += loss.item() * images.size(0)
-                dice_score += dice_coefficient(outputs, masks) * images.size(0)
+                dice_score += dice_score(outputs, masks) * images.size(0)
 
         avg_valid_loss = valid_loss / len(valid_loader.dataset)
         avg_dice_score = dice_score / len(valid_loader.dataset)
@@ -102,6 +102,7 @@ def get_args():
     parser.add_argument('--epochs', '-e', type=int, default=15, help='number of epochs') # CHANGE default epochs 5 to 15
     parser.add_argument('--batch_size', '-b', type=int, default=32, help='batch size') # CHANGE default batch size 1 to 32
     parser.add_argument('--learning-rate', '-lr', type=float, default=1e-5, help='learning rate')
+    # parser.add_argument('--optimizer', '-opt', type=str, default='adam', help='optimizer to use')
 
     return parser.parse_args()
  
