@@ -58,9 +58,9 @@ class OxfordPetDataset(torch.utils.data.Dataset):
 
         # 應用變換
         if self.transform is not None:
-            image = self.transform(image)  # 對影像應用變換
-        mask = transforms.Resize((256, 256), interpolation=Image.NEAREST)(mask)  # 對遮罩應用 Resize
-        mask = transforms.ToTensor()(mask)  # 將遮罩轉換為張量
+            transformed = self.transform(image, mask)  # 傳入 image 和 mask
+            image = transformed["image"]
+            mask = transformed["mask"]
 
         return {"image": image, "mask": mask}
 
@@ -155,16 +155,9 @@ def load_dataset(data_path, mode, transform=None):
     # implement the load dataset function here
 
     # assert False, "Not implemented yet!"
-    return OxfordPetDataset(root=data_path, mode=mode, transform=transform)
-
-    # from torch.utils.data import DataLoader
-
-    # train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
-    # valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
-    # test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
-
-    # return train_dataset, valid_dataset, test_dataset
-
+    # return OxfordPetDataset(root=data_path, mode=mode, transform=transform)
+    dataset = OxfordPetDataset(root=data_path, mode=mode, transform=transform)
+    return dataset
 
 if __name__ == "__main__":
     

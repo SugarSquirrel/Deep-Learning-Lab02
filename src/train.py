@@ -12,20 +12,36 @@ from models.unet import UNet
 from utils import dice_score
 from torchvision import transforms
 
+from torchvision import transforms
+# 資料轉換：影像與遮罩都轉為固定大小的 Tensor
+class SegmentationTransform:
+    def __init__(self, size=(256, 256)):
+        self.image_transform = transforms.Compose([
+            transforms.Resize(size),
+            transforms.ToTensor()
+        ])
+        self.mask_transform = transforms.Compose([
+            transforms.Resize(size, interpolation=transforms.InterpolationMode.NEAREST),
+            transforms.ToTensor()
+        ])
+
+    def __call__(self, image, mask, trimap=None):
+        return {
+            "image": self.image_transform(image),
+            "mask": self.mask_transform(mask)
+        }
+    
 def train(args):
     # implement the training function here
-    # 設置設備
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    transform = SegmentationTransform(size=(256, 256))
 
-    # 定義影像的變換
-    transform = transforms.Compose([
-        transforms.Resize((256, 256)),
-        transforms.ToTensor()
-    ])
+    # 載入 Dataset 並用 DataLoader 包裝
+    train_dataset = load_dataset(data_path=args.data_path, mode="train", transform=transform)
+    valid_dataset = load_dataset(data_path=args.data_path, mode="valid", transform=transform)
 
-    # 加載數據集
-    train_dataset = load_dataset(args.data_path, mode="train", transform=transform)
-    valid_dataset = load_dataset(args.data_path, mode="valid", transform=transform)
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2)
+    valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=False, num_workers=2)
 
     model = UNet(in_channels=3, out_channels=1).to(device)
     criterion = nn.BCEWithLogitsLoss()
@@ -38,44 +54,43 @@ def train(args):
     for epoch in range(args.epochs):
         model.train()
         train_loss = 0.0
-        for idx in range(len(train_dataset)):
-            sample = train_dataset[idx]
-            image = sample["image"].unsqueeze(0).to(device)  # 添加 batch 維度
-            mask = sample["mask"].unsqueeze(0).to(device)    # 添加 batch 維度
+        for batch in train_loader:
+            images = batch['image'].to(device)
+            masks = batch['mask'].to(device)
 
             optimizer.zero_grad()
-            outputs = model(image)
-            loss = criterion(outputs, mask)
+            outputs = model(images)
+            loss = criterion(outputs, masks)
             loss.backward()
             optimizer.step()
 
-            train_loss += loss.item()
+            train_loss += loss.item() * images.size(0)
 
-        avg_train_loss = train_loss / len(train_dataset)
-        print(f"Epoch {epoch+1}/{args.epochs} | Train Loss: {avg_train_loss:.4f}")
+        avg_train_loss = train_loss / len(train_loader.dataset)
+        train_losses.append(avg_train_loss)
 
         model.eval()
         valid_loss = 0.0
+        dice_score = 0.0
         with torch.no_grad():
-            for idx in range(len(valid_dataset)):
-                sample = valid_dataset[idx]
-                image = sample["image"].unsqueeze(0).to(device)
-                mask = sample["mask"].unsqueeze(0).to(device)
+            for batch in valid_loader:
+                images = batch['image'].to(device)
+                masks = batch['mask'].to(device)
 
-                outputs = model(image)
-                loss = criterion(outputs, mask)
-                valid_loss += loss.item()
+                outputs = model(images)
+                loss = criterion(outputs, masks)
+                valid_loss += loss.item() * images.size(0)
+                dice_score += dice_coefficient(outputs, masks) * images.size(0)
 
-
-        avg_valid_loss = valid_loss / len(valid_dataset)
-        avg_dice_score = dice_score / len(valid_dataset)
+        avg_valid_loss = valid_loss / len(valid_loader.dataset)
+        avg_dice_score = dice_score / len(valid_loader.dataset)
         valid_losses.append(avg_valid_loss)
         dice_scores.append(avg_dice_score)
 
         print(f"Epoch {epoch+1}/{args.epochs} | Train Loss: {avg_train_loss:.4f} | "
               f"Valid Loss: {avg_valid_loss:.4f} | Dice Score: {avg_dice_score:.4f}")
 
-    # Plot training results
+    # 畫圖保存
     epochs_range = np.arange(1, args.epochs + 1)
     plt.figure(figsize=(12, 5))
     plt.subplot(1, 2, 1)
@@ -97,7 +112,7 @@ def train(args):
     plt.savefig("training_results.png")
     print("訓練結果折線圖已儲存為 training_results.png")
 
-    # Save model
+    # 儲存模型
     torch.save(model.state_dict(), "unet_model.pth")
     print("模型已儲存為 unet_model.pth")
 
