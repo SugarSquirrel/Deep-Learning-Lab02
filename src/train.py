@@ -10,16 +10,22 @@ from oxford_pet import load_dataset
 from matplotlib import pyplot as plt
 from models.unet import UNet
 from utils import dice_score
+from torchvision import transforms
 
 def train(args):
     # implement the training function here
+    # 設置設備
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    train_dataset = load_dataset(args.data_path, mode="train")
-    valid_dataset = load_dataset(args.data_path, mode="valid")
+    # 定義影像的變換
+    transform = transforms.Compose([
+        transforms.Resize((256, 256)),
+        transforms.ToTensor()
+    ])
 
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-    valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=False)
+    # 加載數據集
+    train_dataset = load_dataset(args.data_path, mode="train", transform=transform)
+    valid_dataset = load_dataset(args.data_path, mode="valid", transform=transform)
 
     model = UNet(in_channels=3, out_channels=1).to(device)
     criterion = nn.BCEWithLogitsLoss()
@@ -32,38 +38,37 @@ def train(args):
     for epoch in range(args.epochs):
         model.train()
         train_loss = 0.0
-        for batch in train_loader:
-            images = batch['image'].float().to(device)
-            masks = batch['mask'].float().unsqueeze(1).to(device)
-            images = images.permute(0, 3, 1, 2)  # [B, H, W, C] -> [B, C, H, W]
+        for idx in range(len(train_dataset)):
+            sample = train_dataset[idx]
+            image = sample["image"].unsqueeze(0).to(device)  # 添加 batch 維度
+            mask = sample["mask"].unsqueeze(0).to(device)    # 添加 batch 維度
 
-            args.optimizer.zero_grad()
-            outputs = model(images)
-            loss = criterion(outputs, masks)
+            optimizer.zero_grad()
+            outputs = model(image)
+            loss = criterion(outputs, mask)
             loss.backward()
             optimizer.step()
 
-            train_loss += loss.item() * images.size(0)
+            train_loss += loss.item()
 
-        avg_train_loss = train_loss / len(train_loader.dataset)
-        train_losses.append(avg_train_loss)
+        avg_train_loss = train_loss / len(train_dataset)
+        print(f"Epoch {epoch+1}/{args.epochs} | Train Loss: {avg_train_loss:.4f}")
 
         model.eval()
         valid_loss = 0.0
-        dice_score = 0.0
         with torch.no_grad():
-            for batch in valid_loader:
-                images = batch['image'].float().to(device)
-                masks = batch['mask'].float().unsqueeze(1).to(device)
-                images = images.permute(0, 3, 1, 2)
+            for idx in range(len(valid_dataset)):
+                sample = valid_dataset[idx]
+                image = sample["image"].unsqueeze(0).to(device)
+                mask = sample["mask"].unsqueeze(0).to(device)
 
-                outputs = model(images)
-                loss = criterion(outputs, masks)
-                valid_loss += loss.item() * images.size(0)
-                dice_score += dice_score(outputs, masks) * images.size(0)
+                outputs = model(image)
+                loss = criterion(outputs, mask)
+                valid_loss += loss.item()
 
-        avg_valid_loss = valid_loss / len(valid_loader.dataset)
-        avg_dice_score = dice_score / len(valid_loader.dataset)
+
+        avg_valid_loss = valid_loss / len(valid_dataset)
+        avg_dice_score = dice_score / len(valid_dataset)
         valid_losses.append(avg_valid_loss)
         dice_scores.append(avg_dice_score)
 

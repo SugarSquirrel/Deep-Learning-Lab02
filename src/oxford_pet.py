@@ -6,9 +6,15 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 from urllib.request import urlretrieve
+from torchvision import transforms
+
+transform = transforms.Compose([
+    transforms.Resize((256, 256)),  # 將影像調整為 256x256
+    transforms.ToTensor()           # 轉換為張量
+])
 
 class OxfordPetDataset(torch.utils.data.Dataset):
-    def __init__(self, root, mode="train", transform=None):
+    def __init__(self, root, mode="train", transform=transform):
 
         assert mode in {"train", "valid", "test"}
 
@@ -23,7 +29,7 @@ class OxfordPetDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.filenames)
-
+    '''
     def __getitem__(self, idx):
 
         filename = self.filenames[idx]
@@ -36,10 +42,27 @@ class OxfordPetDataset(torch.utils.data.Dataset):
         mask = self._preprocess_mask(trimap)
 
         sample = dict(image=image, mask=mask, trimap=trimap)
-        if self.transform is not None:
-            sample = self.transform(**sample)
+        # if self.transform is not None:
+        #     sample = self.transform(**sample)
 
-        return sample
+        # return sample
+    '''
+    def __getitem__(self, idx):
+        filename = self.filenames[idx]
+        image_path = os.path.join(self.images_directory, filename + ".jpg")
+        mask_path = os.path.join(self.masks_directory, filename + ".png")
+
+        # 加載影像和遮罩
+        image = Image.open(image_path).convert("RGB")
+        mask = Image.open(mask_path)
+
+        # 應用變換
+        if self.transform is not None:
+            image = self.transform(image)  # 對影像應用變換
+        mask = transforms.Resize((256, 256), interpolation=Image.NEAREST)(mask)  # 對遮罩應用 Resize
+        mask = transforms.ToTensor()(mask)  # 將遮罩轉換為張量
+
+        return {"image": image, "mask": mask}
 
     @staticmethod
     def _preprocess_mask(mask):
@@ -128,13 +151,11 @@ def extract_archive(filepath):
     if not os.path.exists(dst_dir):
         shutil.unpack_archive(filepath, extract_dir)
 
-def load_dataset(data_path, mode):
+def load_dataset(data_path, mode, transform=None):
     # implement the load dataset function here
 
     # assert False, "Not implemented yet!"
-
-
-    return OxfordPetDataset(root=data_path, mode=mode)
+    return OxfordPetDataset(root=data_path, mode=mode, transform=transform)
 
     # from torch.utils.data import DataLoader
 
