@@ -18,7 +18,7 @@ class OxfordPetDataset(torch.utils.data.Dataset):
 
         self.images_directory = os.path.join(self.root, "images")
         self.masks_directory = os.path.join(self.root, "annotations", "trimaps")
-
+        
         self.filenames = self._read_split()  # read train/valid/test splits
 
     def __len__(self):
@@ -52,7 +52,7 @@ class OxfordPetDataset(torch.utils.data.Dataset):
         split_filename = "test.txt" if self.mode == "test" else "trainval.txt"
         split_filepath = os.path.join(self.root, "annotations", split_filename)
         with open(split_filepath) as f:
-            split_data = f.read().strip("/n").split("/n")
+            split_data = f.read().strip("\n").split("\n")
         filenames = [x.split(" ")[0] for x in split_data]
         if self.mode == "train":  # 90% for train
             filenames = [x for i, x in enumerate(filenames) if i % 10 != 0]
@@ -170,11 +170,41 @@ if __name__ == "__main__":
         print(f"> 訓練集大小: {len(train_dataset)}")
         print(f"> 驗證集大小: {len(valid_dataset)}")
         print(f"> 測試集大小: {len(test_dataset)}")
-
-        from torch.utils.data import DataLoader
-        train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=4)
-        
+        # from torch.utils.data import DataLoader
+        # train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=4)
         print()
+
+        '''show 方法一
+        # from PIL import Image
+        import numpy as np
+        sample = train_dataset[0]
+        mask = sample["mask"]
+        print(sample.keys())
+
+        
+        import torchvision.transforms as T
+        img2t = T.ToTensor()
+        def trimap2f(trimap):
+            return (img2t(trimap) * 255.0 - 1) / 2
+        t2img = T.ToPILImage()
+        # img = Image.fromarray(mask)
+        img = t2img(trimap2f(mask))
+        img.show()
+        '''
+        
+        '''show 方法二😍
+        from matplotlib import pyplot as plt
+        sample = train_dataset[1]
+        plt.subplot(1, 2, 1)
+        # for visualization we have to transpose back to HWC
+        plt.imshow(sample["image"])
+        plt.subplot(1, 2, 2)
+        # for visualization we have to remove 3rd dimension of mask
+        print('> shape mask:', sample["mask"].shape)
+        plt.imshow(sample["mask"].squeeze())
+        plt.show()
+        '''
+
     '''
         sample = train_dataset[0]
         print(f"> 查看第一個樣本有哪些Key:/n  {sample.keys()}")
