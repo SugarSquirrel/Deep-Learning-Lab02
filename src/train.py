@@ -11,7 +11,7 @@ from matplotlib import pyplot as plt
 from torchvision import transforms
 from oxford_pet import load_dataset
 from models.unet import UNet
-from models.resnet34_unet import ResNet34_UNet
+# from models.resnet34_unet import ResNet34_UNet
 from evaluate import evaluate
 
 # 資料轉換：影像與遮罩都轉為固定大小的 Tensor
