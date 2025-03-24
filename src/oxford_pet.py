@@ -9,8 +9,9 @@ from urllib.request import urlretrieve
 from torchvision import transforms
 
 transform = transforms.Compose([
-    transforms.Resize((256, 256)),  # 將影像調整為 256x256
-    transforms.ToTensor()           # 轉換為張量
+    transforms.Resize((256, 256)),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
 ])
 
 class OxfordPetDataset(torch.utils.data.Dataset):
@@ -47,6 +48,7 @@ class OxfordPetDataset(torch.utils.data.Dataset):
 
         # return sample
     '''
+    '''
     def __getitem__(self, idx):
         filename = self.filenames[idx]
         image_path = os.path.join(self.images_directory, filename + ".jpg")
@@ -61,6 +63,24 @@ class OxfordPetDataset(torch.utils.data.Dataset):
             transformed = self.transform(image, mask)  # 傳入 image 和 mask
             image = transformed["image"]
             mask = transformed["mask"]
+
+        return {"image": image, "mask": mask}
+    '''
+    def __getitem__(self, idx):
+        filename = self.filenames[idx]
+        image_path = os.path.join(self.images_directory, filename + ".jpg")
+        mask_path = os.path.join(self.masks_directory, filename + ".png")
+
+        # 讀取影像與原始 trimap（1, 2, 3）
+        image = Image.open(image_path).convert("RGB")
+        trimap = np.array(Image.open(mask_path))  # numpy array
+
+        # 將 trimap 處理成 binary mask
+        mask = self._preprocess_mask(trimap)  # 0 or 1 float32
+
+        # 將 image 和 mask 做相同的轉換
+        image = self.transform(image) if self.transform else image
+        mask = torch.from_numpy(mask).unsqueeze(0)  # [1, H, W] tensor
 
         return {"image": image, "mask": mask}
 

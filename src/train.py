@@ -55,7 +55,7 @@ def train(args):
     for epoch in range(args.epochs):
         model.train()
         train_loss = 0.0
-        for batch in train_loader:
+        for i, batch in enumerate(train_loader):
             images = batch['image'].to(device)
             masks = batch['mask'].to(device)
 
@@ -75,7 +75,7 @@ def train(args):
         train_losses.append(avg_train_loss)
 
         # 評估模型
-        valid_loss, dice_score = evaluate(net=model, data=valid_loader, device=device, criterion=criterion)
+        avg_valid_loss, avg_dice_score = evaluate(net=model, data=valid_loader, device=device, criterion=criterion)
         '''
         model.eval()
         valid_loss = 0.0
@@ -89,12 +89,12 @@ def train(args):
                 loss = criterion(outputs, masks)
                 valid_loss += loss.item() * images.size(0)
                 dice_score += dice_score(outputs, masks) * images.size(0)
-
         avg_valid_loss = valid_loss / len(valid_loader.dataset)
         avg_dice_score = dice_score / len(valid_loader.dataset)
+        '''
         valid_losses.append(avg_valid_loss)
         dice_scores.append(avg_dice_score)
-        '''
+        
         print(f"Epoch {epoch+1}/{args.epochs} | Train Loss: {avg_train_loss:.4f} | "
               f"Valid Loss: {avg_valid_loss:.4f} | Dice Score: {avg_dice_score:.4f}")
 
