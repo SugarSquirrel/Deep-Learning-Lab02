@@ -3,7 +3,7 @@ import torch
 def dice_score(pred, target):
     pred = torch.sigmoid(pred)  # 將 logits 轉為概率
     threshold = 0.5
-    pred = (pred > 0.5).float()  # 二值化
+    pred = (pred > threshold).float()  # 二值化
     target = target.float()
 
     intersection = (pred * target).sum(dim=(1, 2, 3))

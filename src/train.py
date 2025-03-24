@@ -5,25 +5,39 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
+import random
 from torch.utils.data import DataLoader
 from matplotlib import pyplot as plt
-# from utils import dice_score
 from torchvision import transforms
 from oxford_pet import load_dataset
 from models.unet import UNet
 # from models.resnet34_unet import ResNet34_UNet
 from evaluate import evaluate
 
+def set_seed(seed=42):
+    """ 設定所有隨機數生成器的 seed 以確保結果可重現 """
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # 針對多 GPU
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False  # 保證 determinism，但可能稍微影響效能
+
+# 設定 Seed，確保 reproducibility
+SEED = 42  # 這是你的 Seed，可以根據你的最佳結果修改
+set_seed(SEED)
+
 # 資料轉換：影像與遮罩都轉為固定大小的 Tensor
 class SegmentationTransform:
     def __init__(self, size=(256, 256)):
         self.image_transform = transforms.Compose([
             transforms.Resize(size),
-            transforms.ToTensor()
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
         ])
         self.mask_transform = transforms.Compose([
             transforms.Resize(size, interpolation=transforms.InterpolationMode.NEAREST),
-            transforms.ToTensor()
+            transforms.ToTensor(),
         ])
 
     def __call__(self, image, mask, trimap=None):
@@ -60,6 +74,10 @@ def train(args):
     valid_losses = []
     dice_scores = []
 
+    # Early Stopping 相關變數
+    best_valid_loss = float('inf')  # 初始化為正無窮大
+    patience_counter = 0  # 記錄驗證損失未改善的次數
+
     for epoch in range(args.epochs):
         model.train()
         train_loss = 0.0
@@ -84,6 +102,7 @@ def train(args):
 
         # 評估模型
         avg_valid_loss, avg_dice_score = evaluate(net=model, data=valid_loader, device=device, criterion=criterion)
+
         '''
         model.eval()
         valid_loss = 0.0
@@ -100,11 +119,27 @@ def train(args):
         avg_valid_loss = valid_loss / len(valid_loader.dataset)
         avg_dice_score = dice_score / len(valid_loader.dataset)
         '''
+
         valid_losses.append(avg_valid_loss)
         dice_scores.append(avg_dice_score)
         
         print(f"Epoch {epoch+1}/{args.epochs} | Train Loss: {avg_train_loss:.4f} | "
               f"Valid Loss: {avg_valid_loss:.4f} | Dice Score: {avg_dice_score:.4f}")
+        
+        # Early Stopping 檢查
+        if avg_valid_loss < best_valid_loss:
+            best_valid_loss = avg_valid_loss
+            patience_counter = 0  # 重置 patience counter
+            torch.save(model.state_dict(), "best_model.pth")
+            print(f"> 驗證損失改善，儲存模型為 best_model.pth (Loss: {best_valid_loss:.4f})")
+        else:
+            patience_counter += 1
+            print(f"> 驗證損失未改善 ({patience_counter}/{args.patience})")
+
+        # 停止條件
+        if patience_counter >= args.patience:
+            print("> Early stopping triggered. 停止訓練。")
+            break
 
     # 儲存模型
     torch.save(model.state_dict(), "unet_model.pth")
@@ -135,11 +170,10 @@ def train(args):
 def get_args():
     parser = argparse.ArgumentParser(description='Train the UNet on images and target masks')
     parser.add_argument('--data_path', type=str, default='./dataset/oxford-iiit-pet', help='path of the input data') # CHANGE add the default path
-    parser.add_argument('--epochs', '-e', type=int, default=15, help='number of epochs') # CHANGE default epochs 5 to 15
-    parser.add_argument('--batch_size', '-b', type=int, default=32, help='batch size') # CHANGE default batch size 1 to 32
+    parser.add_argument('--epochs', '-e', type=int, default=100, help='number of epochs') # CHANGE default epochs 5 to 15
+    parser.add_argument('--batch_size', '-b', type=int, default=64, help='batch size') # CHANGE default batch size 1 to 32
     parser.add_argument('--learning-rate', '-lr', type=float, default=1e-5, help='learning rate')
-    # parser.add_argument('--optimizer', '-opt', type=str, default='adam', help='optimizer to use')
-
+    parser.add_argument('--patience', type=int, default=10, help='early stopping patience')  # 新增 Early Stopping 的參數
     return parser.parse_args()
  
 if __name__ == "__main__":

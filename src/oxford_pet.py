@@ -30,7 +30,8 @@ class OxfordPetDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.filenames)
-    '''
+    
+    '''助教提供的__getitem__範例
     def __getitem__(self, idx):
 
         filename = self.filenames[idx]
@@ -48,6 +49,7 @@ class OxfordPetDataset(torch.utils.data.Dataset):
 
         # return sample
     '''
+
     '''
     def __getitem__(self, idx):
         filename = self.filenames[idx]
@@ -66,19 +68,23 @@ class OxfordPetDataset(torch.utils.data.Dataset):
 
         return {"image": image, "mask": mask}
     '''
+
+    # 最終改好的__getitem__
     def __getitem__(self, idx):
+        # 讀取影像和遮罩
         filename = self.filenames[idx]
         image_path = os.path.join(self.images_directory, filename + ".jpg")
-        mask_path = os.path.join(self.masks_directory, filename + ".png")
+        mask_path = os.path.join(self.masks_directory, filename + ".png") # 這邊的mask path是trimap path，不是真正的mask
 
-        # 讀取影像與原始 trimap（1, 2, 3）
-        image = Image.open(image_path).convert("RGB")
+        image = Image.open(image_path).convert("RGB") #有些影像本來是灰階的，確保轉換成RGB
         trimap = np.array(Image.open(mask_path))  # numpy array
 
         # 將 trimap 處理成 binary mask
+        # 取得真正的mask
         mask = self._preprocess_mask(trimap)  # 0 or 1 float32
 
         # 將 image 和 mask 做相同的轉換
+        # 這個 transform 寫在 train.py 中
         if self.transform:
             transformed = self.transform(image, mask)  # ✅ 傳入兩個參數
             image = transformed["image"]
@@ -175,11 +181,7 @@ def extract_archive(filepath):
 
 def load_dataset(data_path, mode, transform=None):
     # implement the load dataset function here
-
-    # assert False, "Not implemented yet!"
-    # return OxfordPetDataset(root=data_path, mode=mode, transform=transform)
-    dataset = OxfordPetDataset(root=data_path, mode=mode, transform=transform)
-    return dataset
+    return OxfordPetDataset(root=data_path, mode=mode, transform=transform)
 
 if __name__ == "__main__":
     
@@ -206,9 +208,12 @@ if __name__ == "__main__":
         print(f"> 訓練集大小: {len(train_dataset)}")
         print(f"> 驗證集大小: {len(valid_dataset)}")
         print(f"> 測試集大小: {len(test_dataset)}")
-        # from torch.utils.data import DataLoader
-        # train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=4)
         print()
+
+        print(f'> train_dataset keys: {train_dataset[0].keys()}')
+        print(f'> image type: {type(train_dataset[0]['image'])}')
+        print(f'> mask type: {type(train_dataset[0]['mask'])}')
+        # print(f'> trimap type: {train_dataset[0]['trimap']}') # 改掉getitem的return，所以沒有trimap
 
         '''show 方法一
         # from PIL import Image
@@ -254,39 +259,4 @@ if __name__ == "__main__":
             image.show()
 
         print()
-    '''
-
-    '''
-    image_path = "D:/user/Desktop/FCU大學生活/大四的/下學期/TAICA-DeepLearning/Lab/Lab02/dataset/oxford-iiit-pet/images/american_bulldog_199.jpg"
-    # show
-    image = Image.open(image_path)
-    # transform NumPy to PIL Image
-    # image.show()
-
-    # 檢查色彩通道
-    image_array = np.array(image)
-    print(f"Image shape: {image_array.shape}")  # (高度, 寬度, 通道數)
-    if len(image_array.shape) == 3:
-        print("Color channels: ", image_array.shape[2])
-    else:
-        print("This image is grayscale (single channel).")
-    '''
-
-    '''
-    from torch.utils.data import DataLoader
-    from oxford_pet import OxfordPetDataset
-
-    # 設定資料集路徑
-    dataset_root = "./dataset/oxford-iiit-pet"
-
-    # 初始化訓練資料集
-    train_dataset = OxfordPetDataset(root=dataset_root, mode="train")
-
-    # 建立 DataLoader
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=4)
-
-    # 迭代資料
-    # for batch in train_loader:
-    #     images, masks = batch["image"], batch["mask"]
-        # 在此處進行模型訓練或其他操作
     '''
