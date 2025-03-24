@@ -6,13 +6,14 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 from torch.utils.data import DataLoader
-from oxford_pet import load_dataset
 from matplotlib import pyplot as plt
+# from utils import dice_score
+from torchvision import transforms
+from oxford_pet import load_dataset
 from models.unet import UNet
-from utils import dice_score
-from torchvision import transforms
+from models.resnet34_unet import ResNet34_UNet
+from evaluate import evaluate
 
-from torchvision import transforms
 # 資料轉換：影像與遮罩都轉為固定大小的 Tensor
 class SegmentationTransform:
     def __init__(self, size=(256, 256)):
@@ -66,9 +67,16 @@ def train(args):
 
             train_loss += loss.item() * images.size(0)
 
+            # 每 N 筆輸出一次訓練進度
+            if (i + 1) % 10 == 0 or (i + 1) == len(train_loader):
+                print(f"[Epoch {epoch+1}] Step {i+1}/{len(train_loader)}: Loss = {loss.item():.4f}")
+
         avg_train_loss = train_loss / len(train_loader.dataset)
         train_losses.append(avg_train_loss)
 
+        # 評估模型
+        valid_loss, dice_score = evaluate(net=model, data=valid_loader, device=device, criterion=criterion)
+        '''
         model.eval()
         valid_loss = 0.0
         dice_score = 0.0
@@ -80,15 +88,19 @@ def train(args):
                 outputs = model(images)
                 loss = criterion(outputs, masks)
                 valid_loss += loss.item() * images.size(0)
-                dice_score += dice_coefficient(outputs, masks) * images.size(0)
+                dice_score += dice_score(outputs, masks) * images.size(0)
 
         avg_valid_loss = valid_loss / len(valid_loader.dataset)
         avg_dice_score = dice_score / len(valid_loader.dataset)
         valid_losses.append(avg_valid_loss)
         dice_scores.append(avg_dice_score)
-
+        '''
         print(f"Epoch {epoch+1}/{args.epochs} | Train Loss: {avg_train_loss:.4f} | "
               f"Valid Loss: {avg_valid_loss:.4f} | Dice Score: {avg_dice_score:.4f}")
+
+    # 儲存模型
+    torch.save(model.state_dict(), "unet_model.pth")
+    print("模型已儲存為 unet_model.pth")
 
     # 畫圖保存
     epochs_range = np.arange(1, args.epochs + 1)
@@ -111,10 +123,6 @@ def train(args):
     plt.tight_layout()
     plt.savefig("training_results.png")
     print("訓練結果折線圖已儲存為 training_results.png")
-
-    # 儲存模型
-    torch.save(model.state_dict(), "unet_model.pth")
-    print("模型已儲存為 unet_model.pth")
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train the UNet on images and target masks')
