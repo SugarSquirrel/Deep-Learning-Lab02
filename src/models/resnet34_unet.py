@@ -133,7 +133,7 @@ class ResNet34_UNet(nn.Module):
         self.ups.append(DoubleConv(128, 64))
 
         
-        self.up1 = nn.ConvTranspose2d(1024, 256, kernel_size=2, stride=2)  # 7x7 -> 14x14
+        self.up1 = nn.ConvTranspose2d(512, 256, kernel_size=2, stride=2)  # 7x7 -> 14x14
         self.conv1 = DoubleConv(512, 256)  # 512 + 512 (skip) -> 512
 
         self.up2 = nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2)  # 14x14 -> 28x28
