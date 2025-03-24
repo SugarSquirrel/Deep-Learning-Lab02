@@ -79,9 +79,11 @@ class OxfordPetDataset(torch.utils.data.Dataset):
         mask = self._preprocess_mask(trimap)  # 0 or 1 float32
 
         # 將 image 和 mask 做相同的轉換
-        image = self.transform(image) if self.transform else image
-        mask = torch.from_numpy(mask).unsqueeze(0)  # [1, H, W] tensor
-
+        if self.transform:
+            transformed = self.transform(image, mask)  # ✅ 傳入兩個參數
+            image = transformed["image"]
+            mask = transformed["mask"]
+            
         return {"image": image, "mask": mask}
 
     @staticmethod

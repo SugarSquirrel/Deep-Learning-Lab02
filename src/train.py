@@ -27,9 +27,17 @@ class SegmentationTransform:
         ])
 
     def __call__(self, image, mask, trimap=None):
+        image = self.image_transform(image)
+        mask = self.mask_transform(mask)
+
+        # mask 是 shape [1, H, W]，轉成 numpy 方便處理
+        mask_np = mask.numpy()[0]
+        binary_mask = (mask_np == 1).astype("float32")  # 只保留 label==1 的部分
+        mask = torch.from_numpy(binary_mask).unsqueeze(0)  # 再轉回 tensor
+        
         return {
-            "image": self.image_transform(image),
-            "mask": self.mask_transform(mask)
+            "image": image,
+            "mask": mask
         }
     
 def train(args):
