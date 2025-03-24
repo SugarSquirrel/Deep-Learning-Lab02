@@ -11,8 +11,9 @@ from matplotlib import pyplot as plt
 from torchvision import transforms
 from oxford_pet import load_dataset
 from models.unet import UNet
-# from models.resnet34_unet import ResNet34_UNet
+from models.resnet34_unet import ResNet34_UNet
 from evaluate import evaluate
+from PIL import Image
 
 def set_seed(seed=42):
     """ 設定所有隨機數生成器的 seed 以確保結果可重現 """
@@ -33,7 +34,7 @@ class SegmentationTransform:
         self.image_transform = transforms.Compose([
             transforms.Resize(size),
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+            # transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
         ])
         self.mask_transform = transforms.Compose([
             transforms.Resize(size, interpolation=transforms.InterpolationMode.NEAREST),
@@ -41,6 +42,9 @@ class SegmentationTransform:
         ])
 
     def __call__(self, image, mask, trimap=None):
+        if isinstance(mask, np.ndarray):
+            mask = Image.fromarray(mask)
+
         image = self.image_transform(image)
         mask = self.mask_transform(mask)
 
@@ -66,7 +70,11 @@ def train(args):
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2)
     valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=False, num_workers=2)
 
-    model = UNet(in_channels=3, out_channels=1).to(device)
+    if args.model == 'UNet':
+        model = UNet(in_channels=3, out_channels=1).to(device)
+    else:
+        model = ResNet34_UNet(in_channels=3, out_channels=1).to(device)
+    
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
 
@@ -171,9 +179,10 @@ def get_args():
     parser = argparse.ArgumentParser(description='Train the UNet on images and target masks')
     parser.add_argument('--data_path', type=str, default='./dataset/oxford-iiit-pet', help='path of the input data') # CHANGE add the default path
     parser.add_argument('--epochs', '-e', type=int, default=100, help='number of epochs') # CHANGE default epochs 5 to 15
-    parser.add_argument('--batch_size', '-b', type=int, default=64, help='batch size') # CHANGE default batch size 1 to 32
+    parser.add_argument('--batch_size', '-b', type=int, default=32, help='batch size') # CHANGE default batch size 1 to 32
     parser.add_argument('--learning-rate', '-lr', type=float, default=1e-5, help='learning rate')
     parser.add_argument('--patience', type=int, default=10, help='early stopping patience')  # 新增 Early Stopping 的參數
+    parser.add_argument('--model', type=str, default='UNet', help='choose UNet or ResNet34_UNet')  # 新增 Early Stopping 的參數
     return parser.parse_args()
  
 if __name__ == "__main__":

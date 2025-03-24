@@ -211,8 +211,8 @@ if __name__ == "__main__":
         print()
 
         print(f'> train_dataset keys: {train_dataset[0].keys()}')
-        print(f'> image type: {type(train_dataset[0]['image'])}')
-        print(f'> mask type: {type(train_dataset[0]['mask'])}')
+        print(f'> image type: {type(train_dataset[0]["image"])}')
+        print(f'> mask type: {type(train_dataset[0]["mask"])}')
         # print(f'> trimap type: {train_dataset[0]['trimap']}') # 改掉getitem的return，所以沒有trimap
 
         '''show 方法一
