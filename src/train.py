@@ -77,7 +77,8 @@ def train(args):
     
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
-
+    epoch = 0
+    
     train_losses = []
     valid_losses = []
     dice_scores = []
@@ -154,7 +155,7 @@ def train(args):
     print("模型已儲存為 unet_model.pth")
 
     # 畫圖保存
-    epochs_range = np.arange(1, args.epochs + 1)
+    epochs_range = np.arange(1, epoch + 1)
     plt.figure(figsize=(12, 5))
     plt.subplot(1, 2, 1)
     plt.plot(epochs_range, train_losses, label="Train Loss")
