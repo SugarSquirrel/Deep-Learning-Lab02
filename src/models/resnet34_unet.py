@@ -75,23 +75,24 @@ class ResNet34Encoder(nn.Module):
         skip_connections = []
 
         # encoder
-        x = self.conv1(x)  # 64x112x112
+        x = self.conv1(x)  # Output: (batch, 64, 112, 112)
         x = self.bn1(x)
         x = self.relu(x)
-        x = self.maxpool(x)  # 64x56x56
+        skip_connections.append(x)  # Skip 1 (112x112)
         
-        skip_connections.append(x)  # Skip 1
-        x = self.layer1(x)  # 64x56x56
+        x = self.maxpool(x)  # Output: (batch, 64, 56, 56)
+        x = self.layer1(x)  # Output: (batch, 64, 56, 56)
 
-        skip_connections.append(x)  # Skip 2
-        x = self.layer2(x)  # 128x28x28
+        skip_connections.append(x)  # Skip 2 (56x56)
+        x = self.layer2(x)  # Output: (batch, 128, 28, 28)
 
-        skip_connections.append(x)  # Skip 3
-        x = self.layer3(x)  # 256x14x14
+        skip_connections.append(x)  # Skip 3 (28x28)
+        x = self.layer3(x)  # Output: (batch, 256, 14, 14)
 
-        skip_connections.append(x)  # Skip 4
-        x = self.layer4(x)  # 512x7x7
+        skip_connections.append(x)  # Skip 4 (14x14)
+        x = self.layer4(x)  # Output: (batch, 512, 7, 7)
         
+        # view skip shape
         # for i in range(len(skip_connections)):
         #     print("> skip_connections[{}]: {}".format(i, skip_connections[i].shape)) # 最上到最下 64, 128, 256, 512
 
@@ -129,6 +130,10 @@ class ResNet34_UNet(nn.Module):
         self.up4 = nn.ConvTranspose2d(64, 64, kernel_size=2, stride=2)
         self.conv4 = DoubleConv(128, 64)
 
+        # up: 64x112x112 -> 64x224x224, conv: 64 -> 64
+        self.up5 = nn.ConvTranspose2d(64, 64, kernel_size=2, stride=2)
+        self.conv5 = DoubleConv(64, 64)  # 最終輸出層前的 Conv
+
         self.final_conv = nn.Conv2d(64, out_channels, kernel_size=1)  # Final輸出層, out = 1
 
     def forward(self, x):
@@ -164,6 +169,10 @@ class ResNet34_UNet(nn.Module):
         concar_skip = torch.cat((skip_connection, x), dim=1)
         x = self.conv4(concar_skip)
 
+        # 確保輸出是 256x256
+        x = self.up5(x)
+        x = self.conv5(x)
+
         '''
         for i in range(0, len(self.ups), 2):
             #skip_connections
@@ -187,6 +196,6 @@ class ResNet34_UNet(nn.Module):
     
 if __name__ == "__main__":
     model = ResNet34_UNet(in_channels=3, out_channels=1)
-    x = torch.randn((32, 3, 384, 384))  # Batch size = 32, RGB image, 256x256
+    x = torch.randn((32, 3, 256, 256))  # Batch size = 32, RGB image, 256x256
     preds = model(x)
-    print(preds.shape)  # 要是是 (32, 1, 256, 256)
+    print(preds.shape)  # 要是 (32, 1, 256, 256)

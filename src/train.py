@@ -71,7 +71,7 @@ def train(args):
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2)
     valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=False, num_workers=2)
 
-    if args.model.lower() == 'UNet':
+    if args.model.lower() == 'unet':
         model = UNet(in_channels=3, out_channels=1)
     else:
         model = ResNet34_UNet(in_channels=3, out_channels=1)
@@ -107,7 +107,7 @@ def train(args):
         for i, batch in enumerate(train_loader):
             images = batch['image'].to(device)
             masks = batch['mask'].to(device)
-
+            print("> images shape:", images.shape)
             optimizer.zero_grad()
             outputs = model(images)
             loss = criterion(outputs, masks)
@@ -158,7 +158,7 @@ def train(args):
         if avg_valid_loss < best_valid_loss:
             best_valid_loss = avg_valid_loss
             patience_counter = 0  # 重置 patience counter
-            if args.model.lower() == 'UNet':
+            if args.model.lower() == 'unet':
                 model_pth = "unet_model_best.pth"
             else:
                 model_pth = "resnet34_unet_model_best.pth"
@@ -175,7 +175,7 @@ def train(args):
             break
 
     # 儲存模型
-    if args.model.lower() == 'UNet':
+    if args.model.lower() == 'unet':
         model_pth = f"unet_model_{epoch+1}.pth"
     else:
         model_pth = f"resnet34_unet_model_{epoch+1}.pth"
@@ -207,7 +207,7 @@ def train(args):
 
     plt.tight_layout()
     graph_name = ''
-    if args.model.lower() == 'UNet':
+    if args.model.lower() == 'unet':
         graph_name = "unet_training_results.png"
     else:
         graph_name = "resnet34_unet_training_results.png"
