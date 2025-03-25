@@ -26,7 +26,7 @@ def set_seed(seed=42):
     torch.backends.cudnn.benchmark = False  # 保證 determinism，但可能稍微影響效能
 
 # 設定 Seed，確保 reproducibility
-SEED = 42  # 這是你的 Seed，可以根據你的最佳結果修改
+SEED = 48  # 這是你的 Seed，可以根據你的最佳結果修改
 set_seed(SEED)
 
 # 資料轉換：影像與遮罩都轉為固定大小的 Tensor
@@ -42,7 +42,7 @@ class SegmentationTransform:
             transforms.ToTensor(),
         ])
 
-    def __call__(self, image, mask, trimap=None):
+    def __call__(self, image, mask=None, trimap=None):
         if isinstance(mask, np.ndarray):
             mask = Image.fromarray(mask)
 
@@ -71,7 +71,7 @@ def train(args):
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2)
     valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=False, num_workers=2)
 
-    if args.model == 'UNet':
+    if args.model.lower() == 'UNet':
         model = UNet(in_channels=3, out_channels=1)
     else:
         model = ResNet34_UNet(in_channels=3, out_channels=1)
@@ -94,6 +94,7 @@ def train(args):
     # Early Stopping 相關變數
     best_valid_loss = float('inf')  # 初始化為正無窮大
     patience_counter = 0  # 記錄驗證損失未改善的次數
+    model_pth = ''
 
     # 🔹 初始化 CSV 檔案，寫入標題
     with open('training_log.csv', mode='w', newline='') as file:
@@ -157,8 +158,13 @@ def train(args):
         if avg_valid_loss < best_valid_loss:
             best_valid_loss = avg_valid_loss
             patience_counter = 0  # 重置 patience counter
-            torch.save(model.state_dict(), "best_model.pth")
-            print(f"> 驗證損失改善，儲存模型為 best_model.pth (Loss: {best_valid_loss:.4f})")
+            if args.model.lower() == 'UNet':
+                model_pth = "unet_model_best.pth"
+            else:
+                model_pth = "resnet34_unet_model_best.pth"
+            torch.save(model.state_dict(), model_pth)
+            print(f"> 驗證損失改善，儲存模型為 {model_pth} (Loss: {best_valid_loss:.4f})")
+
         else:
             patience_counter += 1
             print(f"> 驗證損失未改善 ({patience_counter}/{args.patience})")
@@ -169,8 +175,12 @@ def train(args):
             break
 
     # 儲存模型
-    torch.save(model.state_dict(), "unet_model.pth")
-    print("模型已儲存為 unet_model.pth")
+    if args.model.lower() == 'UNet':
+        model_pth = f"unet_model_{epoch+1}.pth"
+    else:
+        model_pth = f"resnet34_unet_model_{epoch+1}.pth"
+    torch.save(model.state_dict(), model_pth)
+    print(f"模型已儲存為 {model_pth}")
 
     # 🚀 **確保 `epochs_range` 長度與 `train_losses` 一致**
     epochs_range = np.arange(1, len(train_losses) + 1)
@@ -196,8 +206,13 @@ def train(args):
     plt.legend()
 
     plt.tight_layout()
-    plt.savefig("training_results.png")
-    print("訓練結果折線圖已儲存為 training_results.png")
+    graph_name = ''
+    if args.model.lower() == 'UNet':
+        graph_name = "unet_training_results.png"
+    else:
+        graph_name = "resnet34_unet_training_results.png"
+    plt.savefig(graph_name)
+    print(f"訓練結果折線圖已儲存為 {graph_name}")
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train the UNet on images and target masks')

@@ -62,7 +62,7 @@ class UNet(nn.Module):
 
     def forward(self, x):
         skip_connections = []
-        print("x_in:", x.shape)
+        # print("x_in:", x.shape)
         for down in self.downs:
             x = down(x)
             skip_connections.append(x)

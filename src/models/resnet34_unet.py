@@ -49,23 +49,20 @@ class BasicBlock(nn.Module):
 class ResNet34Encoder(nn.Module):
     def __init__(self, in_channels=3):
         super(ResNet34Encoder, self).__init__()
-        self.in_channels = 64  # 初始通道數
+        self.in_channels = 64 
 
-        # 🔹 第一層卷積 (對應 ResNet conv1)
+        # ResNet 第一層conv
         self.conv1 = nn.Conv2d(in_channels, 64, kernel_size=7, stride=2, padding=3)
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
-        # 🔹 ResNet34 的 4 層 BasicBlock
-        self.layer1 = self._make_layer(BasicBlock, 64, 3, stride=1)  # 64x56x56
-        self.layer2 = self._make_layer(BasicBlock, 128, 4, stride=2) # 128x28x28
-        self.layer3 = self._make_layer(BasicBlock, 256, 6, stride=2) # 256x14x14
-        self.layer4 = self._make_layer(BasicBlock, 512, 3, stride=2) # 512x7x7
+        # ResNet34 的四層 BasicBlock
+        self.layer1 = self._make_layer(BasicBlock, out_channels=64, num_blocks=3, stride=1)  # 64x56x56
+        self.layer2 = self._make_layer(BasicBlock, out_channels=128, num_blocks=4, stride=2) # 128x28x28
+        self.layer3 = self._make_layer(BasicBlock, out_channels=256, num_blocks=6, stride=2) # 256x14x14
+        self.layer4 = self._make_layer(BasicBlock, out_channels=512, num_blocks=3, stride=2) # 512x7x7
 
-        # 最後轉成512x1x1
-        # self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-    
     def _make_layer(self, block, out_channels, num_blocks, stride):
         layers = []
         layers.append(block(self.in_channels, out_channels, stride))
@@ -77,39 +74,34 @@ class ResNet34Encoder(nn.Module):
     def forward(self, x):
         skip_connections = []
 
-        # **Encoder（下採樣路徑）**
+        # encoder
         x = self.conv1(x)  # 64x112x112
         x = self.bn1(x)
         x = self.relu(x)
         x = self.maxpool(x)  # 64x56x56
         
-        skip_connections.append(x)  # 🔹 Skip 1
-        print("> bf1: ", x.shape)
+        skip_connections.append(x)  # Skip 1
         x = self.layer1(x)  # 64x56x56
-        skip_connections.append(x)  # 🔹 Skip 2
-        print("> 1: ", x.shape)
+
+        skip_connections.append(x)  # Skip 2
         x = self.layer2(x)  # 128x28x28
-        skip_connections.append(x)  # 🔹 Skip 3
-        print("> 2: ", x.shape)
+
+        skip_connections.append(x)  # Skip 3
         x = self.layer3(x)  # 256x14x14
-        skip_connections.append(x)  # 🔹 Skip 4
-        print("> 3: ", x.shape)
+
+        skip_connections.append(x)  # Skip 4
         x = self.layer4(x)  # 512x7x7
-        print("> 4: ", x.shape)
-        # x = self.avgpool(x)
-        for i in range(len(skip_connections)):
-            print("> skip_connections[{}]: {}".format(i, skip_connections[::-1][i].shape))
-        # print("> skip_connections[::-1]: ", skip_connections[::-1][0].shape)
-        return x, skip_connections[::-1]  # 倒序返回 skip connections
+        
+        # for i in range(len(skip_connections)):
+        #     print("> skip_connections[{}]: {}".format(i, skip_connections[i].shape)) # 最上到最下 64, 128, 256, 512
+
+        return x, skip_connections[::-1]  # 倒序return skip connections
 
 class ResNet34_UNet(nn.Module):
-    def __init__(self, in_channels=3, out_channels=1, features=[64, 128, 256, 512]):
+    def __init__(self, in_channels=3, out_channels=1):
         super(ResNet34_UNet, self).__init__()
-        self.ups = nn.ModuleList()
-        # self.downs = nn.ModuleList()
-        self.downs = ResNet34Encoder()  # ✅ 用 ResNet34 當 Encoder
-        # self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
-
+        self.downs = ResNet34Encoder(in_channels=in_channels)  # ResNet34 當 Encoder
+        
         # Up
         # for idx, feature in enumerate(reversed(features)):
         #     # self.ups.append(nn.ConvTranspose2d(feature*2, feature, kernel_size=2, stride=2))
@@ -120,74 +112,53 @@ class ResNet34_UNet(nn.Module):
         #     # else:
         #     self.ups.append(nn.ConvTranspose2d(feature*2, feature, kernel_size=2, stride=2))
         #     self.ups.append(DoubleConv(feature*2, feature))
-
-        # Up
-        # **Upsampling（Decoder）**
-        self.ups.append(nn.ConvTranspose2d(1024, 256, kernel_size=2, stride=2))
-        self.ups.append(DoubleConv(512, 256))
-        self.ups.append(nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2))
-        self.ups.append(DoubleConv(256, 128))
-        self.ups.append(nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2))
-        self.ups.append(DoubleConv(128, 64))
-        self.ups.append(nn.ConvTranspose2d(64, 64, kernel_size=2, stride=2))
-        self.ups.append(DoubleConv(128, 64))
-
         
-        self.up1 = nn.ConvTranspose2d(512, 256, kernel_size=2, stride=2)  # 7x7 -> 14x14
-        self.conv1 = DoubleConv(512, 256)  # 512 + 512 (skip) -> 512
+        # up: 512x7x7 -> 256x14x14, conv: 512 -> 256
+        self.up1 = nn.ConvTranspose2d(512, 256, kernel_size=2, stride=2)
+        self.conv1 = DoubleConv(512, 256)
 
-        self.up2 = nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2)  # 14x14 -> 28x28
-        self.conv2 = DoubleConv(256, 128)  # 256 + 256 (skip) -> 256
+        # up: 256x14x14 -> 128x28x28, conv: 256 -> 128
+        self.up2 = nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2)
+        self.conv2 = DoubleConv(256, 128)
 
-        self.up3 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)  # 28x28 -> 56x56
-        self.conv3 = DoubleConv(128, 64)  # 128 + 128 (skip) -> 128
+        # up: 128x28x28 -> 64x56x56, conv: 128 -> 64
+        self.up3 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)
+        self.conv3 = DoubleConv(128, 64)
 
-        self.up4 = nn.ConvTranspose2d(64, 64, kernel_size=2, stride=2)  # 56x56 -> 112x112
-        self.conv4 = DoubleConv(128, 64)  # 64 + 64 (skip) -> 64
+        # up: 64x56x56 -> 64x112x112, conv: 128 -> 64
+        self.up4 = nn.ConvTranspose2d(64, 64, kernel_size=2, stride=2)
+        self.conv4 = DoubleConv(128, 64)
 
-        self.final_conv = nn.Conv2d(64, out_channels, kernel_size=1)  # 輸出層
-        
-
-        # self.bottleneck = DoubleConv(512, 1024)
-        # self.final_conv = nn.Conv2d(64, out_channels, kernel_size=1)
+        self.final_conv = nn.Conv2d(64, out_channels, kernel_size=1)  # Final輸出層, out = 1
 
     def forward(self, x):
         skip_connections = []
 
-        # for down in self.downs:
-        #     x = down(x)
-        #     skip_connections.append(x)
-        #     x = self.pool(x)
         x, skip_connections = self.downs(x)
-        
-        
-        # skip_connections = skip_connections[::-1]
 
-        # Bottleneck
-        # x = self.bottleneck(x)
         x = self.up1(x)
-        skip_connection = skip_connections[0] # 0, 0, 1, 1, 2, 2, 3, 3
+        skip_connection = skip_connections[0] # 256
         if x.shape != skip_connection.shape:
             x = F.interpolate(x, size=skip_connection.shape[2:], mode='bilinear', align_corners=True)
         concar_skip = torch.cat((skip_connection, x), dim=1)
         x = self.conv1(concar_skip)
 
         x = self.up2(x)
-        skip_connection = skip_connections[1] # 0, 0, 1, 1, 2, 2, 3, 3
+        skip_connection = skip_connections[1] # 128
         if x.shape != skip_connection.shape:
             x = F.interpolate(x, size=skip_connection.shape[2:], mode='bilinear', align_corners=True)
         concar_skip = torch.cat((skip_connection, x), dim=1)
         x = self.conv2(concar_skip)
 
         x = self.up3(x)
-        skip_connection = skip_connections[2] # 0, 0, 1, 1, 2, 2, 3, 3
+        skip_connection = skip_connections[2] # 64
         if x.shape != skip_connection.shape:
             x = F.interpolate(x, size=skip_connection.shape[2:], mode='bilinear', align_corners=True)
         concar_skip = torch.cat((skip_connection, x), dim=1)
         x = self.conv3(concar_skip)
 
         x = self.up4(x)
-        skip_connection = skip_connections[3] # 0, 0, 1, 1, 2, 2, 3, 3
+        skip_connection = skip_connections[3] # 64
         if x.shape != skip_connection.shape:
             x = F.interpolate(x, size=skip_connection.shape[2:], mode='bilinear', align_corners=True)
         concar_skip = torch.cat((skip_connection, x), dim=1)
@@ -218,4 +189,4 @@ if __name__ == "__main__":
     model = ResNet34_UNet(in_channels=3, out_channels=1)
     x = torch.randn((32, 3, 384, 384))  # Batch size = 32, RGB image, 256x256
     preds = model(x)
-    print(preds.shape)  # 應該是 (32, 1, 256, 256)
+    print(preds.shape)  # 要是是 (32, 1, 256, 256)
