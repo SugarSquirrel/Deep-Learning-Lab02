@@ -72,14 +72,21 @@ def train(args):
     valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=False, num_workers=2)
 
     if args.model == 'UNet':
-        model = UNet(in_channels=3, out_channels=1).to(device)
+        model = UNet(in_channels=3, out_channels=1)
     else:
-        model = ResNet34_UNet(in_channels=3, out_channels=1).to(device)
+        model = ResNet34_UNet(in_channels=3, out_channels=1)
     
+    # 🚀 **使用多 GPU 訓練**
+    if torch.cuda.device_count() > 1:
+        print(f"> 使用 {torch.cuda.device_count()} 張 GPU 訓練")
+        model = torch.nn.DataParallel(model)  # 讓 PyTorch 自動分配到多張 GPU
+
+    model = model.to(device)
+
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
-    epoch = 0
 
+    epoch = 0
     train_losses = []
     valid_losses = []
     dice_scores = []
