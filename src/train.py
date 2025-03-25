@@ -6,6 +6,7 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import random
+import csv
 from torch.utils.data import DataLoader
 from matplotlib import pyplot as plt
 from torchvision import transforms
@@ -78,7 +79,7 @@ def train(args):
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
     epoch = 0
-    
+
     train_losses = []
     valid_losses = []
     dice_scores = []
@@ -87,6 +88,11 @@ def train(args):
     best_valid_loss = float('inf')  # 初始化為正無窮大
     patience_counter = 0  # 記錄驗證損失未改善的次數
 
+    # 🔹 初始化 CSV 檔案，寫入標題
+    with open('training_log.csv', mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(['Epoch', 'Train Loss', 'Valid Loss', 'Dice Score'])
+        
     for epoch in range(args.epochs):
         model.train()
         train_loss = 0.0
@@ -135,6 +141,11 @@ def train(args):
         print(f"Epoch {epoch+1}/{args.epochs} | Train Loss: {avg_train_loss:.4f} | "
               f"Valid Loss: {avg_valid_loss:.4f} | Dice Score: {avg_dice_score:.4f}")
         
+        # 🔹 記錄到 CSV
+        with open('training_log.csv', mode='a', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow([epoch, avg_train_loss, avg_valid_loss, avg_dice_score])
+
         # Early Stopping 檢查
         if avg_valid_loss < best_valid_loss:
             best_valid_loss = avg_valid_loss
@@ -154,9 +165,13 @@ def train(args):
     torch.save(model.state_dict(), "unet_model.pth")
     print("模型已儲存為 unet_model.pth")
 
-    # 畫圖保存
-    epochs_range = np.arange(1, epoch + 1)
+    # 🚀 **確保 `epochs_range` 長度與 `train_losses` 一致**
+    epochs_range = np.arange(1, len(train_losses) + 1)
+
+    # 📈 畫圖並儲存
     plt.figure(figsize=(12, 5))
+
+    # 📌 Loss 曲線
     plt.subplot(1, 2, 1)
     plt.plot(epochs_range, train_losses, label="Train Loss")
     plt.plot(epochs_range, valid_losses, label="Valid Loss")
@@ -165,6 +180,7 @@ def train(args):
     plt.ylabel("Loss")
     plt.legend()
 
+    # 📌 Dice Score 曲線
     plt.subplot(1, 2, 2)
     plt.plot(epochs_range, dice_scores, label="Dice Score", color="green")
     plt.title("Dice Score over Epochs")
